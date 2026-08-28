@@ -37,6 +37,7 @@ dev = [
   "pytest-cov",
   "pytest-rerunfailures",
   "ruff",
+  "yamllint",
 ]
 
 [tool.ruff]
@@ -62,7 +63,6 @@ ignore = [
   "S101",    # assert is how pytest works
   "SLF001",  # tests inspect private state deliberately
   "PLR2004", # magic numbers are the point of the assertions
-  "INP001",
   "TC001",   # fixtures are runtime imports
 ]
 
@@ -74,7 +74,8 @@ strict = true
 files = ["src", "tests"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=syntheticalert --cov-report=term-missing --cov-fail-under=100"
+# CI adds --cov-fail-under=100; keeping it out of addopts lets partial local runs pass.
+addopts = "--cov=syntheticalert --cov-report=term-missing"
 testpaths = ["tests"]
 
 [tool.coverage.run]
