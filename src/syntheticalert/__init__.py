@@ -57,9 +57,11 @@ class SyntheticAlert:
 
     Each firing holds the value at 1 for exactly ``firing_duration`` seconds.
     The silent gap between firings, from the end of one to the start of the
-    next, is exponentially distributed (memoryless) with mean ``mean_interval``,
-    truncated to ``[min_interval, max_interval]``. The firings form a Poisson
-    process and so cannot synchronize with cron jobs or with each other.
+    next, is exponentially distributed (memoryless) with mean ``mean_interval``:
+    an attempt at a Poisson process, which cannot synchronize with cron jobs or
+    scrape cycles. As a nod to practicality the gap is truncated to
+    ``[min_interval, max_interval]``, which makes the process only roughly
+    Poisson; widen the bounds to get closer.
 
     The schedule advances lazily: nothing happens until the object is called,
     at which point every transition up to ``clock()`` is replayed. Calls are
