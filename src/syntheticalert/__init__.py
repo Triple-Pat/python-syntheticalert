@@ -28,7 +28,9 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
+
+    from opentelemetry.metrics import CallbackOptions, Observation
 
 __all__ = [
     "DEFAULT_FIRING_DURATION",
@@ -158,3 +160,15 @@ class SyntheticAlert:
                     self._next_transition += self._gap()
                     _log.info("synthetic alert resolved")
             return 1.0 if self._firing else 0.0
+
+    def observe(self, options: CallbackOptions) -> Iterator[Observation]:  # noqa: ARG002
+        """Adapt the callable to an OpenTelemetry observable-gauge callback.
+
+        Pass as ``callbacks=[alert.observe]`` to
+        ``Meter.create_observable_gauge``. Imports ``opentelemetry-api`` lazily,
+        so this package has no dependency on it; anyone holding a ``Meter``
+        already has it installed.
+        """
+        from opentelemetry.metrics import Observation  # noqa: PLC0415
+
+        yield Observation(self())
