@@ -54,15 +54,24 @@ def test_defaults_construct(clock: FakeClock) -> None:
             {"max_interval": 3000},
             "min interval (600.0) and max interval (3000) must bracket the mean interval (3600.0)",
         ),
-        (
-            {"mean_interval": 60, "min_interval": 60, "max_interval": 60, "firing_duration": 1},
-            "min interval (60) must be less than max interval (60)",
-        ),
     ],
 )
 def test_bad_options_raise(kwargs: dict[str, float], message: str) -> None:
     with pytest.raises(ValueError, match=re.escape(message)):
         SyntheticAlert(**kwargs)  # type: ignore[arg-type]
+
+
+def test_zero_width_window_is_a_periodic_schedule(clock: FakeClock) -> None:
+    """min == mean == max is legal: every gap is exactly that long, for deterministic debugging."""
+    alert = SyntheticAlert(
+        mean_interval=60, min_interval=60, max_interval=60, firing_duration=1, clock=clock
+    )
+    for _ in range(100):
+        clock.now = alert._next_transition  # fire
+        assert alert() == 1.0
+        clock.now = alert._next_transition  # resolve, drawing a new gap
+        assert alert() == 0.0
+        assert alert._next_transition == pytest.approx(clock.now + 60)
 
 
 def survival(x: float, mean: float) -> float:

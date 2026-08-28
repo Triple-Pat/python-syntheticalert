@@ -74,9 +74,12 @@ class SyntheticAlert:
         clock: Returns the current time in seconds; must never go backwards.
 
     Raises:
-        ValueError: If any duration is not positive and finite, the firing duration is
-            not shorter than the mean interval, the min and max intervals do
-            not bracket the mean, or the min interval is not below the max.
+        ValueError: If any duration is not positive and finite, the firing
+            duration is not shorter than the mean interval, or the min and max
+            intervals do not bracket the mean. Setting all three intervals
+            equal is allowed: the window has zero width, every gap is exactly
+            that long, and the schedule becomes periodic, which is pointless
+            in production but handy for deterministic debugging.
     """
 
     def __init__(
@@ -106,10 +109,6 @@ class SyntheticAlert:
             raise ValueError(
                 f"min interval ({min_interval}) and max interval ({max_interval}) "
                 f"must bracket the mean interval ({mean_interval})"
-            )
-        if min_interval >= max_interval:
-            raise ValueError(
-                f"min interval ({min_interval}) must be less than max interval ({max_interval})"
             )
         self._mean = mean_interval
         self._min = min_interval
