@@ -49,8 +49,11 @@ ignore = [
   "COM812", # trailing commas: handled by the formatter
   "CPY001", # no copyright headers; LICENSE covers the repo
   "D203",   # conflicts with D211
+  "D107",   # __init__ args are documented in the class docstring (Google style)
   "D213",   # conflicts with D212
+  "EM102",  # f-string messages in raise are idiomatic
   "S311",   # random is the right tool for statistical sampling, not crypto
+  "TRY003", # the validation messages belong at the raise site
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -60,6 +63,7 @@ ignore = [
   "SLF001",  # tests inspect private state deliberately
   "PLR2004", # magic numbers are the point of the assertions
   "INP001",
+  "TC001",   # fixtures are runtime imports
 ]
 
 [tool.ruff.lint.pydocstyle]
