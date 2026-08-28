@@ -73,7 +73,7 @@ class SyntheticAlert:
         clock: Returns the current time in seconds; must never go backwards.
 
     Raises:
-        ValueError: If any duration is not positive, the firing duration is
+        ValueError: If any duration is not positive and finite, the firing duration is
             not shorter than the mean interval, the min and max intervals do
             not bracket the mean, or the min interval is not below the max.
     """
