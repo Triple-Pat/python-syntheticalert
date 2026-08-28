@@ -48,11 +48,11 @@ def test_defaults_construct(clock: FakeClock) -> None:
         ),
         (
             {"min_interval": 4000},
-            "min interval (4000) must not exceed the mean interval (3600.0)",
+            "min interval (4000) and max interval (7200.0) must bracket the mean interval (3600.0)",
         ),
         (
             {"max_interval": 3000},
-            "max interval (3000) must be at least the mean interval (3600.0)",
+            "min interval (600.0) and max interval (3000) must bracket the mean interval (3600.0)",
         ),
         (
             {"mean_interval": 60, "min_interval": 60, "max_interval": 60, "firing_duration": 1},

@@ -102,14 +102,10 @@ class SyntheticAlert:
                 f"firing duration ({firing_duration}) must be less than "
                 f"the mean interval ({mean_interval})"
             )
-        if min_interval > mean_interval:
+        if not min_interval <= mean_interval <= max_interval:
             raise ValueError(
-                f"min interval ({min_interval}) must not exceed the mean interval ({mean_interval})"
-            )
-        if max_interval < mean_interval:
-            raise ValueError(
-                f"max interval ({max_interval}) must be at least "
-                f"the mean interval ({mean_interval})"
+                f"min interval ({min_interval}) and max interval ({max_interval}) "
+                f"must bracket the mean interval ({mean_interval})"
             )
         if min_interval >= max_interval:
             raise ValueError(
