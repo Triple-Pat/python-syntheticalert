@@ -75,6 +75,8 @@ There is no magic here. One line is a serviceable substitute, firing for the
 first ten minutes of every hour:
 
 ```python
+import time
+
 gauge.set_function(lambda: 1.0 if time.localtime().tm_min < 10 else 0.0)
 ```
 
