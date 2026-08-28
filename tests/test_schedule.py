@@ -51,8 +51,9 @@ def test_gap_is_measured_from_end_of_firing(clock: FakeClock) -> None:
 
 
 def test_each_transition_is_logged(clock: FakeClock, caplog: pytest.LogCaptureFixture) -> None:
-    alert = SyntheticAlert(clock=clock)
     with caplog.at_level(logging.INFO, logger="syntheticalert"):
+        alert = SyntheticAlert(clock=clock)
+        caplog.clear()  # only the transitions below are under test, not the construction line
         clock.now = alert._next_transition
         alert()
         clock.now = alert._next_transition
@@ -69,8 +70,7 @@ FEWEST_CYCLES = int(TEN_DAYS // (DEFAULT_MAX_INTERVAL + DEFAULT_FIRING_DURATION)
 MOST_CYCLES = int(TEN_DAYS // (DEFAULT_MIN_INTERVAL + DEFAULT_FIRING_DURATION)) + 1
 
 
-def assert_caught_up_in_one_pass(alert: SyntheticAlert, clock: FakeClock) -> None:
-    """The schedule sits exactly one transition ahead of the clock, and got there via one replay."""
+def assert_schedule_is_one_transition_ahead(alert: SyntheticAlert, clock: FakeClock) -> None:
     assert (
         clock.now
         < alert._next_transition
@@ -81,12 +81,13 @@ def assert_caught_up_in_one_pass(alert: SyntheticAlert, clock: FakeClock) -> Non
 def test_long_pause_replays_every_transition(
     clock: FakeClock, caplog: pytest.LogCaptureFixture
 ) -> None:
-    alert = SyntheticAlert(clock=clock)
-    clock.advance(TEN_DAYS)
     with caplog.at_level(logging.INFO, logger="syntheticalert"):
+        alert = SyntheticAlert(clock=clock)
+        caplog.clear()
+        clock.advance(TEN_DAYS)
         value = alert()
     assert value in (0.0, 1.0)
-    assert_caught_up_in_one_pass(alert, clock)
+    assert_schedule_is_one_transition_ahead(alert, clock)
     (summary,) = caplog.records
     assert summary.getMessage() == "synthetic alert replayed missed transitions"
     transitions = summary.__dict__["transitions"]
@@ -97,16 +98,18 @@ def test_concurrent_scrapes_replay_exactly_once(
     clock: FakeClock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Eight threads race to replay the same long pause; the lock must let exactly one do it."""
-    alert = SyntheticAlert(clock=clock)
-    clock.advance(TEN_DAYS)
     starting_gun = threading.Barrier(8)
     values: list[float] = []
 
-    def scrape() -> None:
-        starting_gun.wait()
-        values.append(alert())
-
     with caplog.at_level(logging.INFO, logger="syntheticalert"):
+        alert = SyntheticAlert(clock=clock)
+        caplog.clear()
+        clock.advance(TEN_DAYS)
+
+        def scrape() -> None:
+            starting_gun.wait()
+            values.append(alert())
+
         threads = [threading.Thread(target=scrape) for _ in range(8)]
         for t in threads:
             t.start()
@@ -114,7 +117,7 @@ def test_concurrent_scrapes_replay_exactly_once(
             t.join()
 
     assert len(set(values)) == 1, "every thread must observe the same state"
-    assert_caught_up_in_one_pass(alert, clock)
+    assert_schedule_is_one_transition_ahead(alert, clock)
     # Exactly one replay summary and no stray per-transition lines: a race would let
     # several threads advance the schedule and log more than one record.
     assert [r.getMessage() for r in caplog.records] == [

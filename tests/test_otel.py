@@ -21,14 +21,18 @@ def test_observe_feeds_an_observable_gauge(clock: FakeClock) -> None:
     alert = SyntheticAlert(clock=clock)
     reader = InMemoryMetricReader()
     provider = MeterProvider(metric_readers=[reader])
-    meter = provider.get_meter("test")
-    meter.create_observable_gauge(
-        "triplepat.synthetic.alert",
-        callbacks=[alert.observe],
-        description="Set to 1 when the synthetic alert should fire and 0 otherwise.",
-    )
+    try:
+        meter = provider.get_meter("test")
+        meter.create_observable_gauge(
+            "triplepat.synthetic.alert",
+            callbacks=[alert.observe],
+            description="Set to 1 when the synthetic alert should fire and 0 otherwise.",
+        )
 
-    assert latest_value(reader) == 0.0
-    clock.now = alert._next_transition
-    assert latest_value(reader) == 1.0
-    provider.shutdown()
+        assert latest_value(reader) == 0.0
+        clock.now = alert._next_transition
+        assert latest_value(reader) == 1.0
+        clock.now = alert._next_transition
+        assert latest_value(reader) == 0.0
+    finally:
+        provider.shutdown()
