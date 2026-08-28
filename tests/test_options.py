@@ -65,12 +65,48 @@ def test_bad_options_raise(kwargs: dict[str, float], message: str) -> None:
         SyntheticAlert(**kwargs)  # type: ignore[arg-type]
 
 
+def survival(x: float, mean: float) -> float:
+    return math.exp(-x / mean)
+
+
+def uniform_that_maps_to(gap: float, mean: float, lo: float, hi: float) -> float:
+    """Invert _gap: the random() value for which the drawn gap is exactly `gap`."""
+    s_hi, s_lo = survival(hi, mean), survival(lo, mean)
+    return 1.0 - (survival(gap, mean) - s_hi) / (s_lo - s_hi)
+
+
 @pytest.mark.parametrize(
-    ("uniform", "gap"), [(0.0, DEFAULT_MIN_INTERVAL), (1.0, DEFAULT_MAX_INTERVAL)]
+    ("uniform", "gap"),
+    [
+        (0.0, DEFAULT_MIN_INTERVAL),
+        (1.0 - 2**-53, DEFAULT_MAX_INTERVAL),  # the largest value random() can return
+        (
+            uniform_that_maps_to(
+                DEFAULT_MEAN_INTERVAL,
+                DEFAULT_MEAN_INTERVAL,
+                DEFAULT_MIN_INTERVAL,
+                DEFAULT_MAX_INTERVAL,
+            ),
+            DEFAULT_MEAN_INTERVAL,
+        ),
+    ],
 )
-def test_gap_maps_the_ends_of_the_uniform_onto_the_bounds(
+def test_gap_is_the_truncated_exponential_quantile(
     monkeypatch: pytest.MonkeyPatch, clock: FakeClock, uniform: float, gap: float
 ) -> None:
     monkeypatch.setattr("syntheticalert.random.random", lambda: uniform)
     alert = SyntheticAlert(clock=clock)
     assert alert._next_transition == pytest.approx(clock.now + gap)
+
+
+@pytest.mark.parametrize("uniform", [0.0, 0.5, 1.0 - 2**-53])
+def test_gap_survives_a_max_interval_hundreds_of_means_away(
+    monkeypatch: pytest.MonkeyPatch, clock: FakeClock, uniform: float
+) -> None:
+    """exp(-max/mean) underflows to 0.0 here; the draw must still be finite and in bounds."""
+    monkeypatch.setattr("syntheticalert.random.random", lambda: uniform)
+    alert = SyntheticAlert(
+        mean_interval=1.0, min_interval=0.5, max_interval=1e6, firing_duration=0.5, clock=clock
+    )
+    gap = alert._next_transition - clock.now
+    assert 0.5 <= gap <= 1e6

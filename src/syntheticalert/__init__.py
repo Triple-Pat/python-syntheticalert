@@ -132,10 +132,15 @@ class SyntheticAlert:
         the exponential's quantile function. One draw, exact shape, and the
         bounds hold literally.
         """
-        lo = 1.0 - math.exp(-self._min / self._mean)
-        hi = 1.0 - math.exp(-self._max / self._mean)
-        u = lo + random.random() * (hi - lo)
-        return -self._mean * math.log(1.0 - u)
+        # Work with the survival function S(x) = exp(-x / mean), which is
+        # strictly positive at min (min <= mean, so the exponent is at least
+        # -1) but underflows to 0.0 when max is hundreds of means away. Using
+        # 1 - random() puts u in (S(max), S(min)], never at S(max), so log()
+        # always gets a positive argument. The clamp only tidies rounding.
+        s_max = math.exp(-self._max / self._mean)
+        s_min = math.exp(-self._min / self._mean)
+        u = s_max + (1.0 - random.random()) * (s_min - s_max)
+        return min(max(-self._mean * math.log(u), self._min), self._max)
 
     def __call__(self) -> float:
         """Return 1.0 if the synthetic alert should be firing right now, else 0.0.
