@@ -131,11 +131,16 @@ class SyntheticAlert:
         # strictly positive at min (min <= mean, so the exponent is at least
         # -1) but underflows to 0.0 when max is hundreds of means away. Using
         # 1 - random() puts u in (S(max), S(min)], never at S(max), so log()
-        # always gets a positive argument. The clamp only tidies rounding.
+        # always gets a positive argument.
         s_max = math.exp(-self._max / self._mean)
         s_min = math.exp(-self._min / self._mean)
         u = s_max + (1.0 - random.random()) * (s_min - s_max)
-        return min(max(-self._mean * math.log(u), self._min), self._max)
+        gap = -self._mean * math.log(u)
+        # Mathematically gap is already in [min, max): this is not clamping a
+        # distribution, it corrects the few ulps by which exp followed by log
+        # can miss a round trip, so the bounds hold literally rather than to
+        # within floating-point rounding.
+        return min(max(gap, self._min), self._max)
 
     def __call__(self) -> float:
         """Return 1.0 if the synthetic alert should be firing right now, else 0.0.
