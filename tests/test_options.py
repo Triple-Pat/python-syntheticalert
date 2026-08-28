@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import math
+import re
+
 import pytest
 
 from syntheticalert import (
@@ -32,11 +35,13 @@ def test_defaults_construct(clock: FakeClock) -> None:
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
-        ({"mean_interval": 0}, "mean interval must be positive"),
-        ({"mean_interval": -1}, "mean interval must be positive"),
-        ({"min_interval": 0}, "min interval must be positive"),
-        ({"max_interval": 0}, "max interval must be positive"),
-        ({"firing_duration": 0}, "firing duration must be positive"),
+        ({"mean_interval": 0}, "mean interval must be positive and finite"),
+        ({"mean_interval": -1}, "mean interval must be positive and finite"),
+        ({"min_interval": 0}, "min interval must be positive and finite"),
+        ({"max_interval": 0}, "max interval must be positive and finite"),
+        ({"firing_duration": 0}, "firing duration must be positive and finite"),
+        ({"mean_interval": math.nan}, "mean interval must be positive and finite, got nan"),
+        ({"max_interval": math.inf}, "max interval must be positive and finite, got inf"),
         (
             {"firing_duration": 3600},
             "firing duration (3600) must be less than the mean interval (3600.0)",
@@ -56,6 +61,13 @@ def test_defaults_construct(clock: FakeClock) -> None:
     ],
 )
 def test_bad_options_raise(kwargs: dict[str, float], message: str) -> None:
-    with pytest.raises(ValueError, match=r".*") as excinfo:
+    with pytest.raises(ValueError, match=re.escape(message)):
         SyntheticAlert(**kwargs)  # type: ignore[arg-type]
-    assert message in str(excinfo.value)
+
+
+def test_gap_discards_out_of_range_draws(monkeypatch: pytest.MonkeyPatch, clock: FakeClock) -> None:
+    draws = iter([5.0, 9_000.0, 1_234.0])
+    monkeypatch.setattr("syntheticalert.random.expovariate", lambda _rate: next(draws))
+    alert = SyntheticAlert(clock=clock)
+    assert alert._next_transition == clock.now + 1_234.0
+    assert next(draws, None) is None, "exactly three draws should have been consumed"

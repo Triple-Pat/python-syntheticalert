@@ -21,6 +21,7 @@ OpenTelemetry::
 from __future__ import annotations
 
 import logging
+import math
 import random
 import threading
 import time
@@ -86,14 +87,15 @@ class SyntheticAlert:
         firing_duration: float = DEFAULT_FIRING_DURATION,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        if mean_interval <= 0:
-            raise ValueError(f"mean interval must be positive, got {mean_interval}")
-        if min_interval <= 0:
-            raise ValueError(f"min interval must be positive, got {min_interval}")
-        if max_interval <= 0:
-            raise ValueError(f"max interval must be positive, got {max_interval}")
-        if firing_duration <= 0:
-            raise ValueError(f"firing duration must be positive, got {firing_duration}")
+        for name, value in (
+            ("mean interval", mean_interval),
+            ("min interval", min_interval),
+            ("max interval", max_interval),
+            ("firing duration", firing_duration),
+        ):
+            # NaN compares False to everything, so it needs the explicit isfinite check.
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be positive and finite, got {value}")
         if firing_duration >= mean_interval:
             raise ValueError(
                 f"firing duration ({firing_duration}) must be less than "
@@ -127,7 +129,9 @@ class SyntheticAlert:
         Resampling beats clamping because it preserves the distribution's
         shape. The constructor guarantees ``min < max`` and
         ``min <= mean <= max``, so the window has positive probability mass
-        and this loop terminates.
+        and this loop terminates. The expected number of draws is the inverse
+        of that mass: about two with the defaults, but a window much narrower
+        than the mean would make each gap draw correspondingly slower.
         """
         wait = -1.0  # outside [min, max], so at least one sample is drawn
         while wait < self._min or wait > self._max:
