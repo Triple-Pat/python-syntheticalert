@@ -103,10 +103,13 @@ def test_gap_is_the_truncated_exponential_quantile(
 def test_gap_survives_a_max_interval_hundreds_of_means_away(
     monkeypatch: pytest.MonkeyPatch, clock: FakeClock, uniform: float
 ) -> None:
-    """exp(-max/mean) underflows to 0.0 here; the draw must still be finite and in bounds."""
+    """A naive CDF-space draw crashes here: exp(-max/mean) underflows to 0.0, so the CDF at
+    max is exactly 1.0, and with the CDF at min above 0.5 the largest random() value rounds
+    u to exactly 1.0 and log(1 - u) raises. The draw must instead be finite and in bounds.
+    """
     monkeypatch.setattr("syntheticalert.random.random", lambda: uniform)
     alert = SyntheticAlert(
-        mean_interval=1.0, min_interval=0.5, max_interval=1e6, firing_duration=0.5, clock=clock
+        mean_interval=1.0, min_interval=1.0, max_interval=1e6, firing_duration=0.5, clock=clock
     )
     gap = alert._next_transition - clock.now
-    assert 0.5 <= gap <= 1e6
+    assert 1.0 <= gap <= 1e6
