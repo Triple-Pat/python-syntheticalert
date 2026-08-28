@@ -1,0 +1,80 @@
+[project]
+name = "triplepat-syntheticalert"
+version = "0.0.0"
+description = "A synthetic alert measurement callback, so a Triple Pat check-in timer can verify your alerting pipeline end to end."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Triple Pat" }]
+requires-python = ">=3.10"
+dependencies = []
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: System Administrators",
+  "Programming Language :: Python :: 3",
+  "Topic :: System :: Monitoring",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://triplepat.com"
+Source = "https://github.com/Triple-Pat/python-syntheticalert"
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "syntheticalert"
+
+[dependency-groups]
+dev = [
+  "mypy",
+  "opentelemetry-api",
+  "opentelemetry-sdk",
+  "prometheus-client",
+  "pytest",
+  "pytest-cov",
+  "pytest-rerunfailures",
+  "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "COM812", # trailing commas: handled by the formatter
+  "CPY001", # no copyright headers; LICENSE covers the repo
+  "D203",   # conflicts with D211
+  "D213",   # conflicts with D212
+  "S311",   # random is the right tool for statistical sampling, not crypto
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+  "D",       # test docstrings are the test names
+  "S101",    # assert is how pytest works
+  "SLF001",  # tests inspect private state deliberately
+  "PLR2004", # magic numbers are the point of the assertions
+  "INP001",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=syntheticalert --cov-report=term-missing --cov-fail-under=100"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+exclude_also = ["if TYPE_CHECKING:"]

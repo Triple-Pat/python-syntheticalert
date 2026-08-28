@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.coverage
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+dist/
+# local design docs, by preference never committed
+/docs/superpowers/
+# roborev snapshots
+/.roborev/
