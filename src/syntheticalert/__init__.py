@@ -124,6 +124,15 @@ class SyntheticAlert:
         self._lock = threading.Lock()
         self._firing = False
         self._next_transition = clock() + self._gap()
+        _log.info(
+            "synthetic alert schedule configured",
+            extra={
+                "mean_interval": mean_interval,
+                "min_interval": min_interval,
+                "max_interval": max_interval,
+                "firing_duration": firing_duration,
+            },
+        )
 
     def _gap(self) -> float:
         """Draw one silent gap: exponential with the configured mean, resampled into bounds.
@@ -148,17 +157,20 @@ class SyntheticAlert:
         """
         with self._lock:
             now = self._clock()
+            transitions = 0
             while now >= self._next_transition:
                 self._firing = not self._firing
-                if self._firing:
-                    self._next_transition += self._firing_duration
-                    _log.info(
-                        "synthetic alert firing",
-                        extra={"firing_duration": self._firing_duration},
-                    )
-                else:
-                    self._next_transition += self._gap()
-                    _log.info("synthetic alert resolved")
+                self._next_transition += self._firing_duration if self._firing else self._gap()
+                transitions += 1
+            if transitions == 1:
+                _log.info("synthetic alert firing" if self._firing else "synthetic alert resolved")
+            elif transitions > 1:
+                # A long gap between scrapes: one summary line rather than a burst of
+                # transition lines all timestamped now.
+                _log.info(
+                    "synthetic alert replayed missed transitions",
+                    extra={"transitions": transitions},
+                )
             return 1.0 if self._firing else 0.0
 
     def observe(self, options: CallbackOptions) -> Iterator[Observation]:  # noqa: ARG002

@@ -15,11 +15,13 @@ N = 10_000
 KS_CRITICAL = 1.628 / math.sqrt(N)
 
 
-def truncated_exponential_cdf(x: float, mean: float, lo: float, hi: float) -> float:
-    def cdf(v: float) -> float:
-        return 1.0 - math.exp(-v / mean)
+def exponential_cdf(x: float, mean: float) -> float:
+    return 1.0 - math.exp(-x / mean)
 
-    return (cdf(x) - cdf(lo)) / (cdf(hi) - cdf(lo))
+
+def truncated_exponential_cdf(x: float, mean: float, lo: float, hi: float) -> float:
+    lo_mass, hi_mass = exponential_cdf(lo, mean), exponential_cdf(hi, mean)
+    return (exponential_cdf(x, mean) - lo_mass) / (hi_mass - lo_mass)
 
 
 def ks_statistic(samples: list[float], mean: float, lo: float, hi: float) -> float:
@@ -35,11 +37,8 @@ def ks_statistic(samples: list[float], mean: float, lo: float, hi: float) -> flo
 
 def inverse_truncated_exponential(u: float, mean: float, lo: float, hi: float) -> float:
     """Quantile function of the exponential(mean) distribution truncated to [lo, hi]."""
-
-    def cdf(v: float) -> float:
-        return 1.0 - math.exp(-v / mean)
-
-    return -mean * math.log(1.0 - (cdf(lo) + u * (cdf(hi) - cdf(lo))))
+    lo_mass, hi_mass = exponential_cdf(lo, mean), exponential_cdf(hi, mean)
+    return -mean * math.log(1.0 - (lo_mass + u * (hi_mass - lo_mass)))
 
 
 # Evenly spaced quantiles: a noise-free stand-in for a sample from a distribution.
@@ -86,17 +85,14 @@ def correct(mean: float, lo: float, hi: float) -> list[float]:
 def test_ks_test_rejects_wrong_distributions(
     wrong: Callable[[float, float, float], list[float]],
 ) -> None:
-    """Prove the test has teeth, and that the right distribution passes on noise-free data."""
+    """Prove the test has teeth."""
     alert = SyntheticAlert()
-    assert (
-        ks_statistic(
-            wrong(alert._mean, alert._min, alert._max), alert._mean, alert._min, alert._max
-        )
-        > KS_CRITICAL
-    )
-    assert (
-        ks_statistic(
-            correct(alert._mean, alert._min, alert._max), alert._mean, alert._min, alert._max
-        )
-        < KS_CRITICAL
-    )
+    samples = wrong(alert._mean, alert._min, alert._max)
+    assert ks_statistic(samples, alert._mean, alert._min, alert._max) > KS_CRITICAL
+
+
+def test_ks_test_accepts_the_right_distribution() -> None:
+    """Positive control: noise-free quantiles of the right distribution pass."""
+    alert = SyntheticAlert()
+    samples = correct(alert._mean, alert._min, alert._max)
+    assert ks_statistic(samples, alert._mean, alert._min, alert._max) < KS_CRITICAL
