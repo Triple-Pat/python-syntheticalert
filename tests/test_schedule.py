@@ -51,9 +51,8 @@ def test_gap_is_measured_from_end_of_firing(clock: FakeClock) -> None:
 
 
 def test_each_transition_is_logged(clock: FakeClock, caplog: pytest.LogCaptureFixture) -> None:
-    with caplog.at_level(logging.INFO, logger="syntheticalert"):
-        alert = SyntheticAlert(clock=clock)
-        caplog.clear()  # only the transitions below are under test, not the construction line
+    alert = SyntheticAlert(clock=clock)
+    with caplog.at_level(logging.DEBUG, logger="syntheticalert"):
         clock.now = alert._next_transition
         alert()
         clock.now = alert._next_transition
@@ -70,6 +69,13 @@ FEWEST_CYCLES = int(TEN_DAYS // (DEFAULT_MAX_INTERVAL + DEFAULT_FIRING_DURATION)
 MOST_CYCLES = int(TEN_DAYS // (DEFAULT_MIN_INTERVAL + DEFAULT_FIRING_DURATION)) + 1
 
 
+def assert_transitions_alternate(caplog: pytest.LogCaptureFixture) -> None:
+    """Every logged transition flips state: firing, resolved, firing, ... starting with firing."""
+    messages = [r.getMessage() for r in caplog.records]
+    expected = ["synthetic alert firing", "synthetic alert resolved"] * (len(messages) // 2 + 1)
+    assert messages == expected[: len(messages)]
+
+
 def assert_schedule_is_one_transition_ahead(alert: SyntheticAlert, clock: FakeClock) -> None:
     assert (
         clock.now
@@ -81,35 +87,30 @@ def assert_schedule_is_one_transition_ahead(alert: SyntheticAlert, clock: FakeCl
 def test_long_pause_replays_every_transition(
     clock: FakeClock, caplog: pytest.LogCaptureFixture
 ) -> None:
-    with caplog.at_level(logging.INFO, logger="syntheticalert"):
-        alert = SyntheticAlert(clock=clock)
-        caplog.clear()
-        clock.advance(TEN_DAYS)
+    alert = SyntheticAlert(clock=clock)
+    clock.advance(TEN_DAYS)
+    with caplog.at_level(logging.DEBUG, logger="syntheticalert"):
         value = alert()
     assert value in (0.0, 1.0)
     assert_schedule_is_one_transition_ahead(alert, clock)
-    (summary,) = caplog.records
-    assert summary.getMessage() == "synthetic alert replayed missed transitions"
-    transitions = summary.__dict__["transitions"]
-    assert 2 * FEWEST_CYCLES <= transitions <= 2 * MOST_CYCLES
+    assert_transitions_alternate(caplog)
+    assert 2 * FEWEST_CYCLES <= len(caplog.records) <= 2 * MOST_CYCLES
 
 
 def test_concurrent_scrapes_replay_exactly_once(
     clock: FakeClock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Eight threads race to replay the same long pause; the lock must let exactly one do it."""
+    alert = SyntheticAlert(clock=clock)
+    clock.advance(TEN_DAYS)
     starting_gun = threading.Barrier(8)
     values: list[float] = []
 
-    with caplog.at_level(logging.INFO, logger="syntheticalert"):
-        alert = SyntheticAlert(clock=clock)
-        caplog.clear()
-        clock.advance(TEN_DAYS)
+    def scrape() -> None:
+        starting_gun.wait()
+        values.append(alert())
 
-        def scrape() -> None:
-            starting_gun.wait()
-            values.append(alert())
-
+    with caplog.at_level(logging.DEBUG, logger="syntheticalert"):
         threads = [threading.Thread(target=scrape) for _ in range(8)]
         for t in threads:
             t.start()
@@ -118,8 +119,7 @@ def test_concurrent_scrapes_replay_exactly_once(
 
     assert len(set(values)) == 1, "every thread must observe the same state"
     assert_schedule_is_one_transition_ahead(alert, clock)
-    # Exactly one replay summary and no stray per-transition lines: a race would let
-    # several threads advance the schedule and log more than one record.
-    assert [r.getMessage() for r in caplog.records] == [
-        "synthetic alert replayed missed transitions"
-    ]
+    # Without the lock, two threads can both read _firing, both flip it the same way,
+    # and log two "firing" lines in a row.
+    assert_transitions_alternate(caplog)
+    assert 2 * FEWEST_CYCLES <= len(caplog.records) <= 2 * MOST_CYCLES

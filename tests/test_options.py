@@ -65,9 +65,12 @@ def test_bad_options_raise(kwargs: dict[str, float], message: str) -> None:
         SyntheticAlert(**kwargs)  # type: ignore[arg-type]
 
 
-def test_gap_discards_out_of_range_draws(monkeypatch: pytest.MonkeyPatch, clock: FakeClock) -> None:
-    draws = iter([5.0, 9_000.0, 1_234.0])
-    monkeypatch.setattr("syntheticalert.random.expovariate", lambda _rate: next(draws))
+@pytest.mark.parametrize(
+    ("uniform", "gap"), [(0.0, DEFAULT_MIN_INTERVAL), (1.0, DEFAULT_MAX_INTERVAL)]
+)
+def test_gap_maps_the_ends_of_the_uniform_onto_the_bounds(
+    monkeypatch: pytest.MonkeyPatch, clock: FakeClock, uniform: float, gap: float
+) -> None:
+    monkeypatch.setattr("syntheticalert.random.random", lambda: uniform)
     alert = SyntheticAlert(clock=clock)
-    assert alert._next_transition == clock.now + 1_234.0
-    assert next(draws, None) is None, "exactly three draws should have been consumed"
+    assert alert._next_transition == pytest.approx(clock.now + gap)

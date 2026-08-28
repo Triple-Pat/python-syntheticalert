@@ -58,9 +58,8 @@ class SyntheticAlert:
     Each firing holds the value at 1 for exactly ``firing_duration`` seconds.
     The silent gap between firings, from the end of one to the start of the
     next, is exponentially distributed (memoryless) with mean ``mean_interval``,
-    resampled until it lies within ``[min_interval, max_interval]``. The
-    firings form a Poisson process and so cannot synchronize with cron jobs or
-    with each other.
+    truncated to ``[min_interval, max_interval]``. The firings form a Poisson
+    process and so cannot synchronize with cron jobs or with each other.
 
     The schedule advances lazily: nothing happens until the object is called,
     at which point every transition up to ``clock()`` is replayed. Calls are
@@ -124,30 +123,19 @@ class SyntheticAlert:
         self._lock = threading.Lock()
         self._firing = False
         self._next_transition = clock() + self._gap()
-        _log.info(
-            "synthetic alert schedule configured",
-            extra={
-                "mean_interval": mean_interval,
-                "min_interval": min_interval,
-                "max_interval": max_interval,
-                "firing_duration": firing_duration,
-            },
-        )
 
     def _gap(self) -> float:
-        """Draw one silent gap: exponential with the configured mean, resampled into bounds.
+        """Draw one silent gap from the exponential distribution truncated to [min, max].
 
-        Resampling beats clamping because it preserves the distribution's
-        shape. The constructor guarantees ``min < max`` and
-        ``min <= mean <= max``, so the window has positive probability mass
-        and this loop terminates. The expected number of draws is the inverse
-        of that mass: about two with the defaults, but a window much narrower
-        than the mean would make each gap draw correspondingly slower.
+        Inverse-CDF sampling: pick a uniform point within the probability
+        mass the exponential puts on the window, then map it back through
+        the exponential's quantile function. One draw, exact shape, and the
+        bounds hold literally.
         """
-        wait = -1.0  # outside [min, max], so at least one sample is drawn
-        while wait < self._min or wait > self._max:
-            wait = random.expovariate(1.0 / self._mean)
-        return wait
+        lo = 1.0 - math.exp(-self._min / self._mean)
+        hi = 1.0 - math.exp(-self._max / self._mean)
+        u = lo + random.random() * (hi - lo)
+        return -self._mean * math.log(1.0 - u)
 
     def __call__(self) -> float:
         """Return 1.0 if the synthetic alert should be firing right now, else 0.0.
@@ -157,20 +145,10 @@ class SyntheticAlert:
         """
         with self._lock:
             now = self._clock()
-            transitions = 0
             while now >= self._next_transition:
                 self._firing = not self._firing
                 self._next_transition += self._firing_duration if self._firing else self._gap()
-                transitions += 1
-            if transitions == 1:
-                _log.info("synthetic alert firing" if self._firing else "synthetic alert resolved")
-            elif transitions > 1:
-                # A long gap between scrapes: one summary line rather than a burst of
-                # transition lines all timestamped now.
-                _log.info(
-                    "synthetic alert replayed missed transitions",
-                    extra={"transitions": transitions},
-                )
+                _log.debug("synthetic alert firing" if self._firing else "synthetic alert resolved")
             return 1.0 if self._firing else 0.0
 
     def observe(self, options: CallbackOptions) -> Iterator[Observation]:  # noqa: ARG002
