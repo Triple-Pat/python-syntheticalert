@@ -64,6 +64,7 @@ ignore = [
   "SLF001",  # tests inspect private state deliberately
   "PLR2004", # magic numbers are the point of the assertions
   "TC001",   # fixtures are runtime imports
+  "TC002",   # pytest is a runtime import even when only annotations use it
 ]
 
 [tool.ruff.lint.pydocstyle]

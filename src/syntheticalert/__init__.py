@@ -137,3 +137,24 @@ class SyntheticAlert:
         while wait < self._min or wait > self._max:
             wait = random.expovariate(1.0 / self._mean)
         return wait
+
+    def __call__(self) -> float:
+        """Return 1.0 if the synthetic alert should be firing right now, else 0.0.
+
+        Replays every schedule transition between the last call and now, so
+        the firings stay an honest Poisson process whatever the scrape cadence.
+        """
+        with self._lock:
+            now = self._clock()
+            while now >= self._next_transition:
+                self._firing = not self._firing
+                if self._firing:
+                    self._next_transition += self._firing_duration
+                    _log.info(
+                        "synthetic alert firing",
+                        extra={"firing_duration": self._firing_duration},
+                    )
+                else:
+                    self._next_transition += self._gap()
+                    _log.info("synthetic alert resolved")
+            return 1.0 if self._firing else 0.0
