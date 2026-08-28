@@ -148,7 +148,7 @@ class SyntheticAlert:
         """Return 1.0 if the synthetic alert should be firing right now, else 0.0.
 
         Replays every schedule transition between the last call and now, so
-        the firings stay an honest Poisson process whatever the scrape cadence.
+        the realized schedule is the same whatever the scrape cadence.
         """
         # Why carry state and replay transitions, rather than compute the state
         # from the clock alone?
