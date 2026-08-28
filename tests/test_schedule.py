@@ -50,14 +50,18 @@ def test_gap_is_measured_from_end_of_firing(clock: FakeClock) -> None:
     assert resolved_at + 600.0 <= next_firing <= resolved_at + DEFAULT_MAX_INTERVAL
 
 
-def test_each_transition_is_logged(clock: FakeClock, caplog: pytest.LogCaptureFixture) -> None:
+def test_each_scrape_logs_the_current_state(
+    clock: FakeClock, caplog: pytest.LogCaptureFixture
+) -> None:
     alert = SyntheticAlert(clock=clock)
     with caplog.at_level(logging.DEBUG, logger="syntheticalert"):
+        alert()
         clock.now = alert._next_transition
         alert()
         clock.now = alert._next_transition
         alert()
     assert [r.getMessage() for r in caplog.records] == [
+        "synthetic alert resolved",
         "synthetic alert firing",
         "synthetic alert resolved",
     ]
@@ -69,11 +73,17 @@ FEWEST_CYCLES = int(TEN_DAYS // (DEFAULT_MAX_INTERVAL + DEFAULT_FIRING_DURATION)
 MOST_CYCLES = int(TEN_DAYS // (DEFAULT_MIN_INTERVAL + DEFAULT_FIRING_DURATION)) + 1
 
 
-def assert_transitions_alternate(caplog: pytest.LogCaptureFixture) -> None:
-    """Every logged transition flips state: firing, resolved, firing, ... starting with firing."""
-    messages = [r.getMessage() for r in caplog.records]
-    expected = ["synthetic alert firing", "synthetic alert resolved"] * (len(messages) // 2 + 1)
-    assert messages == expected[: len(messages)]
+def count_gap_draws(alert: SyntheticAlert, monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Wrap alert._gap so each drawn gap is recorded; one draw per replayed cycle."""
+    draws: list[float] = []
+    real_gap = alert._gap
+
+    def recording_gap() -> float:
+        draws.append(real_gap())
+        return draws[-1]
+
+    monkeypatch.setattr(alert, "_gap", recording_gap)
+    return draws
 
 
 def assert_schedule_is_one_transition_ahead(alert: SyntheticAlert, clock: FakeClock) -> None:
@@ -85,22 +95,21 @@ def assert_schedule_is_one_transition_ahead(alert: SyntheticAlert, clock: FakeCl
 
 
 def test_long_pause_replays_every_transition(
-    clock: FakeClock, caplog: pytest.LogCaptureFixture
+    clock: FakeClock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     alert = SyntheticAlert(clock=clock)
+    draws = count_gap_draws(alert, monkeypatch)
     clock.advance(TEN_DAYS)
     with caplog.at_level(logging.DEBUG, logger="syntheticalert"):
         value = alert()
     assert value in (0.0, 1.0)
     assert_schedule_is_one_transition_ahead(alert, clock)
-    assert_transitions_alternate(caplog)
-    assert 2 * FEWEST_CYCLES <= len(caplog.records) <= 2 * MOST_CYCLES
+    assert FEWEST_CYCLES <= len(draws) <= MOST_CYCLES, "one gap per replayed cycle"
+    assert len(caplog.records) == 1, "one log line per scrape, however many transitions"
 
 
-def test_concurrent_scrapes_replay_exactly_once(
-    clock: FakeClock, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Eight threads race to replay the same long pause; the lock must let exactly one do it."""
+def test_concurrent_scrapes_agree(clock: FakeClock) -> None:
+    """Eight threads race to replay the same long pause and must all observe one state."""
     alert = SyntheticAlert(clock=clock)
     clock.advance(TEN_DAYS)
     starting_gun = threading.Barrier(8)
@@ -110,16 +119,12 @@ def test_concurrent_scrapes_replay_exactly_once(
         starting_gun.wait()
         values.append(alert())
 
-    with caplog.at_level(logging.DEBUG, logger="syntheticalert"):
-        threads = [threading.Thread(target=scrape) for _ in range(8)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+    threads = [threading.Thread(target=scrape) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
 
+    assert len(values) == 8
     assert len(set(values)) == 1, "every thread must observe the same state"
     assert_schedule_is_one_transition_ahead(alert, clock)
-    # Without the lock, two threads can both read _firing, both flip it the same way,
-    # and log two "firing" lines in a row.
-    assert_transitions_alternate(caplog)
-    assert 2 * FEWEST_CYCLES <= len(caplog.records) <= 2 * MOST_CYCLES

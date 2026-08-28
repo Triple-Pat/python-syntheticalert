@@ -99,7 +99,7 @@ All durations are floats, in seconds.
 
 The firing duration must be shorter than the mean interval, and the min and
 max intervals must bracket the mean. Bad options raise `ValueError` at
-construction. Transitions are logged at DEBUG on the `syntheticalert` logger.
+construction. Each scrape logs the current state at DEBUG on the `syntheticalert` logger.
 
 ## Alert on the metric
 

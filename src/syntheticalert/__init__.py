@@ -180,7 +180,7 @@ class SyntheticAlert:
             while now >= self._next_transition:
                 self._firing = not self._firing
                 self._next_transition += self._firing_duration if self._firing else self._gap()
-                _log.debug("synthetic alert firing" if self._firing else "synthetic alert resolved")
+            _log.debug("synthetic alert firing" if self._firing else "synthetic alert resolved")
             return 1.0 if self._firing else 0.0
 
     def observe(self, options: CallbackOptions) -> Iterator[Observation]:  # noqa: ARG002
