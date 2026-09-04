@@ -48,11 +48,80 @@ gauge = Gauge(
 gauge.set_function(SyntheticAlert())
 ```
 
+This is for single-process servers. In a multi-process server the synthetic
+alert must come from exactly one process, and the next section shows how.
+The principle is worth stating on its own: a synthetic alert is a schedule,
+and a schedule has to have one owner. With one `SyntheticAlert` per worker
+there are as many schedules as workers, each scrape lands on a random one,
+and the alert flaps. Whether that one owner is the master process or a
+small sidecar exporter of its own is a deployment choice; what matters is
+that there is one.
+
+### Prometheus under gunicorn
+
+Under gunicorn, `prometheus_client` runs in multiprocess mode: with
+`PROMETHEUS_MULTIPROC_DIR` set, every gauge keeps its value in a
+per-process file, and the scrape is answered by a `MultiProcessCollector`
+that reads those files. It never calls a gauge's function, so the
+`set_function` wiring above reports the 0 that was written when the gauge
+was constructed, on every scrape, forever. The alert never fires and the
+check-in timer raises an alarm for a pipeline that is fine.
+
+The fix is to drive the gauge from the master, which is the one process
+that exists exactly once. `when_ready` runs in the master, once, before
+any worker forks. A daemon thread there sets the gauge from the schedule,
+which writes the master's file; the workers never touch the gauge, so
+their files hold no entry for it, and every scrape reports the master's
+value whichever worker answers it. In `gunicorn.conf.py`:
+
+```python
+import threading
+import time
+
+from prometheus_client import Gauge
+from prometheus_client.multiprocess import mark_process_dead
+from syntheticalert import SyntheticAlert
+
+
+def when_ready(server):
+    alert = SyntheticAlert()
+    gauge = Gauge(
+        "triplepat_synthetic_alert",
+        "Set to 1 when the synthetic alert should fire and 0 otherwise.",
+        multiprocess_mode="livemostrecent",
+    )
+
+    def drive():
+        while True:
+            gauge.set(alert())
+            time.sleep(1)
+
+    threading.Thread(target=drive, daemon=True, name="synthetic-alert").start()
+
+
+def child_exit(server, worker):
+    mark_process_dead(worker.pid)
+```
+
+`multiprocess_mode="livemostrecent"` collapses the series to one line
+without a `pid` label and drops processes that have exited; since only the
+master writes the gauge, "most recent" is simply the master's value. The
+scrape is at most one second stale, which is nothing against a ten-minute
+firing. Create the gauge inside `when_ready` rather than at import time so
+that no worker ever holds it. The usual multiprocess rule still applies:
+empty `PROMETHEUS_MULTIPROC_DIR` when gunicorn starts, or a previous
+master's file lingers.
+
+The library itself still starts no thread. The thread belongs in the
+deployment configuration, next to the decision about how many processes
+there are.
+
 ### OpenTelemetry
 
 The same callable serves OpenTelemetry through its `observe` method. The
 OTel-to-Prometheus exporter turns the dotted metric name into
-`triplepat_synthetic_alert`:
+`triplepat_synthetic_alert`. The one-owner principle applies here too:
+register the observable gauge in exactly one process.
 
 ```python
 from syntheticalert import SyntheticAlert
