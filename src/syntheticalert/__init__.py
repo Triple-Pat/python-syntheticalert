@@ -68,7 +68,8 @@ class SyntheticAlert:
 
     Every duration is a :class:`datetime.timedelta`, Python's standard
     duration type, so a caller writes ``timedelta(minutes=30)`` rather than a
-    bare number whose unit has to be looked up.
+    bare number whose unit has to be looked up. The type hints are the
+    contract; there is no runtime type check.
 
     Args:
         mean_interval: Mean silent gap between firings.
@@ -78,7 +79,6 @@ class SyntheticAlert:
         clock: Returns the current time in seconds; must never go backwards.
 
     Raises:
-        TypeError: If a duration is not a ``timedelta``.
         ValueError: If a duration is not positive, the firing duration is not
             shorter than the mean interval, or the min and max intervals do
             not bracket the mean. Setting all three intervals equal is
@@ -102,8 +102,6 @@ class SyntheticAlert:
             ("max interval", max_interval),
             ("firing duration", firing_duration),
         ):
-            if not isinstance(value, timedelta):
-                raise TypeError(f"{name} must be a datetime.timedelta, got {type(value).__name__}")
             if value <= timedelta(0):
                 raise ValueError(f"{name} must be positive, got {value}")
         if firing_duration >= mean_interval:

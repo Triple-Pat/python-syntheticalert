@@ -106,7 +106,8 @@ want a deterministic schedule anyway, the line above is all you need.
 ### Options
 
 Every duration is a `datetime.timedelta`, Python's standard duration type,
-so the unit is in the code rather than in the documentation:
+so the unit is in the code rather than in the documentation. The type hints
+are the contract; nothing checks types at runtime:
 
 ```python
 from datetime import timedelta
@@ -123,9 +124,8 @@ SyntheticAlert(mean_interval=timedelta(minutes=30), max_interval=timedelta(hours
 | `clock` | Time source in seconds, for tests | `time.monotonic` |
 
 The firing duration must be shorter than the mean interval, and the min and
-max intervals must bracket the mean. Bad options fail at construction, never
-at scrape time: a `TypeError` for anything that is not a `timedelta` and a
-`ValueError` for a duration out of range. Setting all three intervals equal
+max intervals must bracket the mean. Bad options raise `ValueError` at
+construction, never at scrape time. Setting all three intervals equal
 is allowed: every gap is then exactly that long and the schedule is
 periodic, which is pointless in production but handy for deterministic
 debugging. The defaults are exported as `DEFAULT_MEAN_INTERVAL`,

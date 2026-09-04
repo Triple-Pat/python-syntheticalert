@@ -44,16 +44,6 @@ def test_defaults_construct(clock: FakeClock) -> None:
 
 
 @pytest.mark.parametrize(
-    "option", ["mean_interval", "min_interval", "max_interval", "firing_duration"]
-)
-@pytest.mark.parametrize("value", [3600, 3600.0, "1h", None, True])
-def test_durations_must_be_timedeltas(option: str, value: object) -> None:
-    name = option.replace("_", " ")
-    with pytest.raises(TypeError, match=re.escape(f"{name} must be a datetime.timedelta, got")):
-        SyntheticAlert(**{option: value})  # type: ignore[arg-type]
-
-
-@pytest.mark.parametrize(
     ("kwargs", "message"),
     [
         ({"mean_interval": timedelta(0)}, "mean interval must be positive, got 0:00:00"),
