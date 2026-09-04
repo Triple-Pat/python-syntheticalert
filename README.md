@@ -115,7 +115,9 @@ All durations are floats, in seconds.
 
 The firing duration must be shorter than the mean interval, and the min and
 max intervals must bracket the mean. Bad options raise `ValueError` at
-construction. Each scrape logs the current state at DEBUG on the `syntheticalert` logger.
+construction. Setting all three intervals equal is allowed: every gap is
+then exactly that long and the schedule is periodic, which is pointless in
+production but handy for deterministic debugging.
 
 ## Alert on the metric
 
