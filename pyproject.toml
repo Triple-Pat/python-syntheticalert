@@ -75,7 +75,8 @@ strict = true
 files = ["src", "tests"]
 
 [tool.pytest.ini_options]
-# CI adds --cov-fail-under=100; keeping it out of addopts lets partial local runs pass.
+# CI gates with `coverage report --fail-under=100` as a separate step, after the
+# Coveralls upload; keeping the gate out of addopts lets partial local runs pass.
 addopts = "--cov=syntheticalert --cov-report=term-missing"
 testpaths = ["tests"]
 
