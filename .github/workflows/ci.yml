@@ -38,10 +38,13 @@ jobs:
         run: uv run pytest --cov-fail-under=100 --cov-report=xml
       # Feeds the README's Coveralls badge with measured coverage. Main only:
       # fork PRs get a read-only token and the upload would fail. One matrix
-      # leg only, so Coveralls sees one report per commit.
+      # leg only (the first, so the condition survives matrix edits), so
+      # Coveralls sees one report per commit. A Coveralls outage must not
+      # redden a run whose lint and tests passed, hence fail-on-error: false.
       - name: Coveralls
-        if: github.ref == 'refs/heads/main' && matrix.python-version == '3.14'
+        if: github.ref == 'refs/heads/main' && strategy.job-index == 0
         uses: coverallsapp/github-action@v2
         with:
           file: coverage.xml
           format: cobertura
+          fail-on-error: false
