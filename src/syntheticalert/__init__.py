@@ -24,6 +24,7 @@ import math
 import random
 import threading
 import time
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -39,20 +40,20 @@ __all__ = [
     "SyntheticAlert",
 ]
 
-DEFAULT_MEAN_INTERVAL = 3600.0
-"""Default mean silent gap between firings, in seconds."""
-DEFAULT_MIN_INTERVAL = 600.0
-"""Default lower bound on the silent gap, in seconds."""
-DEFAULT_MAX_INTERVAL = 7200.0
-"""Default upper bound on the silent gap, in seconds."""
-DEFAULT_FIRING_DURATION = 600.0
-"""Default length of each firing, in seconds."""
+DEFAULT_MEAN_INTERVAL = timedelta(hours=1)
+"""Default mean silent gap between firings."""
+DEFAULT_MIN_INTERVAL = timedelta(minutes=10)
+"""Default lower bound on the silent gap."""
+DEFAULT_MAX_INTERVAL = timedelta(hours=2)
+"""Default upper bound on the silent gap."""
+DEFAULT_FIRING_DURATION = timedelta(minutes=10)
+"""Default length of each firing."""
 
 
 class SyntheticAlert:
     """A measurement callback that is 1.0 while the synthetic alert fires.
 
-    Each firing holds the value at 1 for exactly ``firing_duration`` seconds.
+    Each firing holds the value at 1 for exactly ``firing_duration``.
     The silent gap between firings, from the end of one to the start of the
     next, is exponentially distributed (memoryless) with mean ``mean_interval``:
     an attempt at a Poisson process, which cannot synchronize with cron jobs or
@@ -65,29 +66,34 @@ class SyntheticAlert:
     serialized with a lock, so the object is safe to scrape from several
     threads.
 
+    Every duration is a :class:`datetime.timedelta`, Python's standard
+    duration type, so a caller writes ``timedelta(minutes=30)`` rather than a
+    bare number whose unit has to be looked up.
+
     Args:
-        mean_interval: Mean silent gap between firings, in seconds.
-        min_interval: Lower bound on the silent gap, in seconds.
-        max_interval: Upper bound on the silent gap, in seconds.
-        firing_duration: How long each firing lasts, in seconds.
+        mean_interval: Mean silent gap between firings.
+        min_interval: Lower bound on the silent gap.
+        max_interval: Upper bound on the silent gap.
+        firing_duration: How long each firing lasts.
         clock: Returns the current time in seconds; must never go backwards.
 
     Raises:
-        ValueError: If any duration is not positive and finite, the firing
-            duration is not shorter than the mean interval, or the min and max
-            intervals do not bracket the mean. Setting all three intervals
-            equal is allowed: the window has zero width, every gap is exactly
-            that long, and the schedule becomes periodic, which is pointless
-            in production but handy for deterministic debugging.
+        TypeError: If a duration is not a ``timedelta``.
+        ValueError: If a duration is not positive, the firing duration is not
+            shorter than the mean interval, or the min and max intervals do
+            not bracket the mean. Setting all three intervals equal is
+            allowed: the window has zero width, every gap is exactly that
+            long, and the schedule becomes periodic, which is pointless in
+            production but handy for deterministic debugging.
     """
 
     def __init__(
         self,
         *,
-        mean_interval: float = DEFAULT_MEAN_INTERVAL,
-        min_interval: float = DEFAULT_MIN_INTERVAL,
-        max_interval: float = DEFAULT_MAX_INTERVAL,
-        firing_duration: float = DEFAULT_FIRING_DURATION,
+        mean_interval: timedelta = DEFAULT_MEAN_INTERVAL,
+        min_interval: timedelta = DEFAULT_MIN_INTERVAL,
+        max_interval: timedelta = DEFAULT_MAX_INTERVAL,
+        firing_duration: timedelta = DEFAULT_FIRING_DURATION,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         for name, value in (
@@ -96,9 +102,10 @@ class SyntheticAlert:
             ("max interval", max_interval),
             ("firing duration", firing_duration),
         ):
-            # NaN compares False to everything, so it needs the explicit isfinite check.
-            if not math.isfinite(value) or value <= 0:
-                raise ValueError(f"{name} must be positive and finite, got {value}")
+            if not isinstance(value, timedelta):
+                raise TypeError(f"{name} must be a datetime.timedelta, got {type(value).__name__}")
+            if value <= timedelta(0):
+                raise ValueError(f"{name} must be positive, got {value}")
         if firing_duration >= mean_interval:
             raise ValueError(
                 f"firing duration ({firing_duration}) must be less than "
@@ -109,10 +116,11 @@ class SyntheticAlert:
                 f"min interval ({min_interval}) and max interval ({max_interval}) "
                 f"must bracket the mean interval ({mean_interval})"
             )
-        self._mean = mean_interval
-        self._min = min_interval
-        self._max = max_interval
-        self._firing_duration = firing_duration
+        # The clock counts float seconds, so the schedule arithmetic does too.
+        self._mean = mean_interval.total_seconds()
+        self._min = min_interval.total_seconds()
+        self._max = max_interval.total_seconds()
+        self._firing_duration = firing_duration.total_seconds()
         self._clock = clock
         self._lock = threading.Lock()
         self._firing = False

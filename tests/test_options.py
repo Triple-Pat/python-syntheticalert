@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+from datetime import timedelta
 
 import pytest
 
@@ -14,57 +15,80 @@ from syntheticalert import (
 )
 from tests.conftest import FakeClock
 
+# The defaults as float seconds, for arithmetic against the float clock.
+MEAN = DEFAULT_MEAN_INTERVAL.total_seconds()
+MIN = DEFAULT_MIN_INTERVAL.total_seconds()
+MAX = DEFAULT_MAX_INTERVAL.total_seconds()
 
-def test_defaults_match_the_go_siblings() -> None:
-    assert DEFAULT_MEAN_INTERVAL == 3600.0
-    assert DEFAULT_MIN_INTERVAL == 600.0
-    assert DEFAULT_MAX_INTERVAL == 7200.0
-    assert DEFAULT_FIRING_DURATION == 600.0
+
+def test_defaults_are_timedeltas_matching_the_siblings() -> None:
+    defaults = (
+        DEFAULT_MEAN_INTERVAL,
+        DEFAULT_MIN_INTERVAL,
+        DEFAULT_MAX_INTERVAL,
+        DEFAULT_FIRING_DURATION,
+    )
+    assert defaults == (
+        timedelta(hours=1),
+        timedelta(minutes=10),
+        timedelta(hours=2),
+        timedelta(minutes=10),
+    )
+    assert [d.total_seconds() for d in defaults] == [3600, 600, 7200, 600]
 
 
 def test_defaults_construct(clock: FakeClock) -> None:
     alert = SyntheticAlert(clock=clock)
     assert alert._firing is False
-    assert (
-        clock.now + DEFAULT_MIN_INTERVAL
-        <= alert._next_transition
-        <= clock.now + DEFAULT_MAX_INTERVAL
-    )
+    assert clock.now + MIN <= alert._next_transition <= clock.now + MAX
+
+
+@pytest.mark.parametrize(
+    "option", ["mean_interval", "min_interval", "max_interval", "firing_duration"]
+)
+@pytest.mark.parametrize("value", [3600, 3600.0, "1h", None, True])
+def test_durations_must_be_timedeltas(option: str, value: object) -> None:
+    name = option.replace("_", " ")
+    with pytest.raises(TypeError, match=re.escape(f"{name} must be a datetime.timedelta, got")):
+        SyntheticAlert(**{option: value})  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
-        ({"mean_interval": 0}, "mean interval must be positive and finite"),
-        ({"mean_interval": -1}, "mean interval must be positive and finite"),
-        ({"min_interval": 0}, "min interval must be positive and finite"),
-        ({"max_interval": 0}, "max interval must be positive and finite"),
-        ({"firing_duration": 0}, "firing duration must be positive and finite"),
-        ({"mean_interval": math.nan}, "mean interval must be positive and finite, got nan"),
-        ({"max_interval": math.inf}, "max interval must be positive and finite, got inf"),
+        ({"mean_interval": timedelta(0)}, "mean interval must be positive, got 0:00:00"),
+        ({"mean_interval": timedelta(seconds=-1)}, "mean interval must be positive"),
+        ({"min_interval": timedelta(0)}, "min interval must be positive"),
+        ({"max_interval": timedelta(0)}, "max interval must be positive"),
+        ({"firing_duration": timedelta(0)}, "firing duration must be positive"),
         (
-            {"firing_duration": 3600},
-            "firing duration (3600) must be less than the mean interval (3600.0)",
+            {"firing_duration": timedelta(hours=1)},
+            "firing duration (1:00:00) must be less than the mean interval (1:00:00)",
         ),
         (
-            {"min_interval": 4000},
-            "min interval (4000) and max interval (7200.0) must bracket the mean interval (3600.0)",
+            {"min_interval": timedelta(minutes=70)},
+            "min interval (1:10:00) and max interval (2:00:00) must bracket the mean interval",
         ),
         (
-            {"max_interval": 3000},
-            "min interval (600.0) and max interval (3000) must bracket the mean interval (3600.0)",
+            {"max_interval": timedelta(minutes=50)},
+            "min interval (0:10:00) and max interval (0:50:00) must bracket the mean interval",
         ),
     ],
 )
-def test_bad_options_raise(kwargs: dict[str, float], message: str) -> None:
+def test_bad_options_raise(kwargs: dict[str, timedelta], message: str) -> None:
     with pytest.raises(ValueError, match=re.escape(message)):
         SyntheticAlert(**kwargs)  # type: ignore[arg-type]
 
 
 def test_zero_width_window_is_a_periodic_schedule(clock: FakeClock) -> None:
     """min == mean == max is legal: every gap is exactly that long, for deterministic debugging."""
+    minute = timedelta(minutes=1)
     alert = SyntheticAlert(
-        mean_interval=60, min_interval=60, max_interval=60, firing_duration=1, clock=clock
+        mean_interval=minute,
+        min_interval=minute,
+        max_interval=minute,
+        firing_duration=timedelta(seconds=1),
+        clock=clock,
     )
     for _ in range(100):
         clock.now = alert._next_transition  # fire
@@ -87,17 +111,9 @@ def uniform_that_maps_to(gap: float, mean: float, lo: float, hi: float) -> float
 @pytest.mark.parametrize(
     ("uniform", "gap"),
     [
-        (0.0, DEFAULT_MIN_INTERVAL),
-        (1.0 - 2**-53, DEFAULT_MAX_INTERVAL),  # the largest value random() can return
-        (
-            uniform_that_maps_to(
-                DEFAULT_MEAN_INTERVAL,
-                DEFAULT_MEAN_INTERVAL,
-                DEFAULT_MIN_INTERVAL,
-                DEFAULT_MAX_INTERVAL,
-            ),
-            DEFAULT_MEAN_INTERVAL,
-        ),
+        (0.0, MIN),
+        (1.0 - 2**-53, MAX),  # the largest value random() can return
+        (uniform_that_maps_to(MEAN, MEAN, MIN, MAX), MEAN),
     ],
 )
 def test_gap_is_the_truncated_exponential_quantile(
@@ -117,8 +133,13 @@ def test_gap_survives_a_max_interval_hundreds_of_means_away(
     u to exactly 1.0 and log(1 - u) raises. The draw must instead be finite and in bounds.
     """
     monkeypatch.setattr("syntheticalert.random.random", lambda: uniform)
+    second = timedelta(seconds=1)
     alert = SyntheticAlert(
-        mean_interval=1.0, min_interval=1.0, max_interval=1e6, firing_duration=0.5, clock=clock
+        mean_interval=second,
+        min_interval=second,
+        max_interval=timedelta(seconds=1e6),
+        firing_duration=timedelta(seconds=0.5),
+        clock=clock,
     )
     gap = alert._next_transition - clock.now
     assert 1.0 <= gap <= 1e6

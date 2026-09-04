@@ -105,21 +105,31 @@ want a deterministic schedule anyway, the line above is all you need.
 
 ### Options
 
-All durations are floats, in seconds.
+Every duration is a `datetime.timedelta`, Python's standard duration type,
+so the unit is in the code rather than in the documentation:
+
+```python
+from datetime import timedelta
+
+SyntheticAlert(mean_interval=timedelta(minutes=30), max_interval=timedelta(hours=1))
+```
 
 | Keyword | Effect | Default |
 |---|---|---|
-| `mean_interval` | Mean silent gap between firings | `3600.0` |
-| `min_interval` | Lower bound on the silent gap | `600.0` |
-| `max_interval` | Upper bound on the silent gap | `7200.0` |
-| `firing_duration` | How long each firing holds the gauge at 1 | `600.0` |
-| `clock` | Time source, for tests | `time.monotonic` |
+| `mean_interval` | Mean silent gap between firings | `timedelta(hours=1)` |
+| `min_interval` | Lower bound on the silent gap | `timedelta(minutes=10)` |
+| `max_interval` | Upper bound on the silent gap | `timedelta(hours=2)` |
+| `firing_duration` | How long each firing holds the gauge at 1 | `timedelta(minutes=10)` |
+| `clock` | Time source in seconds, for tests | `time.monotonic` |
 
 The firing duration must be shorter than the mean interval, and the min and
-max intervals must bracket the mean. Bad options raise `ValueError` at
-construction. Setting all three intervals equal is allowed: every gap is
-then exactly that long and the schedule is periodic, which is pointless in
-production but handy for deterministic debugging.
+max intervals must bracket the mean. Bad options fail at construction, never
+at scrape time: a `TypeError` for anything that is not a `timedelta` and a
+`ValueError` for a duration out of range. Setting all three intervals equal
+is allowed: every gap is then exactly that long and the schedule is
+periodic, which is pointless in production but handy for deterministic
+debugging. The defaults are exported as `DEFAULT_MEAN_INTERVAL`,
+`DEFAULT_MIN_INTERVAL`, `DEFAULT_MAX_INTERVAL`, and `DEFAULT_FIRING_DURATION`.
 
 ## Alert on the metric
 

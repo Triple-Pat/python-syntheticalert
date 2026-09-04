@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import pytest
@@ -47,7 +48,10 @@ QUANTILE_GRID = [(i + 0.5) / N for i in range(N)]
 
 def test_every_gap_lies_within_bounds() -> None:
     alert = SyntheticAlert(
-        mean_interval=100.0, min_interval=50.0, max_interval=150.0, firing_duration=1.0
+        mean_interval=timedelta(seconds=100),
+        min_interval=timedelta(seconds=50),
+        max_interval=timedelta(seconds=150),
+        firing_duration=timedelta(seconds=1),
     )
     for _ in range(N):
         assert 50.0 <= alert._gap() <= 150.0

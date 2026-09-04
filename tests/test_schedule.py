@@ -13,6 +13,10 @@ from syntheticalert import (
 from tests.conftest import FakeClock
 
 EPSILON = 1e-6
+# The defaults as float seconds, for arithmetic against the float clock.
+FIRING = DEFAULT_FIRING_DURATION.total_seconds()
+MIN = DEFAULT_MIN_INTERVAL.total_seconds()
+MAX = DEFAULT_MAX_INTERVAL.total_seconds()
 
 
 def test_starts_resolved(clock: FakeClock) -> None:
@@ -29,12 +33,12 @@ def test_fires_after_one_silent_gap_then_resolves(clock: FakeClock) -> None:
 
     clock.now = first_firing
     assert alert() == 1.0
-    assert alert._next_transition == first_firing + DEFAULT_FIRING_DURATION
+    assert alert._next_transition == first_firing + FIRING
 
-    clock.now = first_firing + DEFAULT_FIRING_DURATION - EPSILON
+    clock.now = first_firing + FIRING - EPSILON
     assert alert() == 1.0
 
-    clock.now = first_firing + DEFAULT_FIRING_DURATION
+    clock.now = first_firing + FIRING
     assert alert() == 0.0
 
 
@@ -46,13 +50,13 @@ def test_gap_is_measured_from_end_of_firing(clock: FakeClock) -> None:
     clock.now = resolved_at
     alert()  # resolved; a fresh gap was drawn from here
     next_firing = alert._next_transition
-    assert resolved_at + 600.0 <= next_firing <= resolved_at + DEFAULT_MAX_INTERVAL
+    assert resolved_at + MIN <= next_firing <= resolved_at + MAX
 
 
 TEN_DAYS = 10 * 24 * 3600.0
 # Every cycle is one silent gap plus one firing, so ten days holds this many cycles.
-FEWEST_CYCLES = int(TEN_DAYS // (DEFAULT_MAX_INTERVAL + DEFAULT_FIRING_DURATION))
-MOST_CYCLES = int(TEN_DAYS // (DEFAULT_MIN_INTERVAL + DEFAULT_FIRING_DURATION)) + 1
+FEWEST_CYCLES = int(TEN_DAYS // (MAX + FIRING))
+MOST_CYCLES = int(TEN_DAYS // (MIN + FIRING)) + 1
 
 
 def count_gap_draws(alert: SyntheticAlert, monkeypatch: pytest.MonkeyPatch) -> list[float]:
@@ -69,11 +73,7 @@ def count_gap_draws(alert: SyntheticAlert, monkeypatch: pytest.MonkeyPatch) -> l
 
 
 def assert_schedule_is_one_transition_ahead(alert: SyntheticAlert, clock: FakeClock) -> None:
-    assert (
-        clock.now
-        < alert._next_transition
-        <= clock.now + DEFAULT_MAX_INTERVAL + DEFAULT_FIRING_DURATION
-    )
+    assert clock.now < alert._next_transition <= clock.now + MAX + FIRING
 
 
 def test_long_pause_replays_every_transition(
