@@ -1,3 +1,5 @@
+[![Lint and Test](https://github.com/Triple-Pat/python-syntheticalert/actions/workflows/ci.yml/badge.svg)](https://github.com/Triple-Pat/python-syntheticalert/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/Triple-Pat/python-syntheticalert/badge.svg?branch=main)](https://coveralls.io/github/Triple-Pat/python-syntheticalert?branch=main)
+
 # python-syntheticalert
 
 Drive a synthetic alert metric from Python, so a
