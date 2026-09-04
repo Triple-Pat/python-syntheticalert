@@ -70,8 +70,7 @@ check-in timer raises an alarm for a pipeline that is fine.
 The fix is to drive the gauge from the master, which is the one process
 that exists exactly once. `when_ready` runs in the master, once, before
 any worker forks. A daemon thread there sets the gauge from the schedule,
-which writes the master's file; the workers never touch the gauge, so
-their files hold no entry for it, and every scrape reports the master's
+which writes the master's file, and every scrape reports the master's
 value whichever worker answers it. In `gunicorn.conf.py`:
 
 ```python
@@ -103,14 +102,18 @@ def child_exit(server, worker):
     mark_process_dead(worker.pid)
 ```
 
-`multiprocess_mode="livemostrecent"` collapses the series to one line
-without a `pid` label and drops processes that have exited; since only the
-master writes the gauge, "most recent" is simply the master's value. The
-scrape is at most one second stale, which is nothing against a ten-minute
-firing. Create the gauge inside `when_ready` rather than at import time so
-that no worker ever holds it. The usual multiprocess rule still applies:
-empty `PROMETHEUS_MULTIPROC_DIR` when gunicorn starts, or a previous
-master's file lingers.
+`multiprocess_mode="livemostrecent"` is what makes this work. Workers
+fork after `when_ready`, so they inherit the gauge, and the first metric a
+worker touches resets every inherited value and writes a placeholder 0 for
+the gauge into that worker's file, with no timestamp. Each `set` in the
+master stamps its write with the current time, and `livemostrecent`
+reports the sample with the newest timestamp, so the master's value always
+wins and the placeholders never show. The mode also collapses the series
+to one line without a `pid` label and drops processes that have exited.
+The scrape is at most one second stale, which is nothing against a
+ten-minute firing. The usual multiprocess rule still applies: empty
+`PROMETHEUS_MULTIPROC_DIR` when gunicorn starts, or a previous master's
+file lingers.
 
 The library itself still starts no thread. The thread belongs in the
 deployment configuration, next to the decision about how many processes
