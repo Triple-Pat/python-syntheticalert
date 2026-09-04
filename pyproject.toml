@@ -29,6 +29,7 @@ module-name = "syntheticalert"
 
 [dependency-groups]
 dev = [
+  "coverage",
   "mypy",
   "opentelemetry-api",
   "opentelemetry-sdk",
