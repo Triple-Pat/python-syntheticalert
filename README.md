@@ -1,4 +1,4 @@
-[![Lint and Test](https://github.com/Triple-Pat/python-syntheticalert/actions/workflows/ci.yml/badge.svg)](https://github.com/Triple-Pat/python-syntheticalert/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/Triple-Pat/python-syntheticalert/badge.svg?branch=main)](https://coveralls.io/github/Triple-Pat/python-syntheticalert?branch=main)
+[![PyPI](https://img.shields.io/pypi/v/triplepat-syntheticalert)](https://pypi.org/project/triplepat-syntheticalert/) [![Lint and Test](https://github.com/Triple-Pat/python-syntheticalert/actions/workflows/ci.yml/badge.svg)](https://github.com/Triple-Pat/python-syntheticalert/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/Triple-Pat/python-syntheticalert/badge.svg?branch=main)](https://coveralls.io/github/Triple-Pat/python-syntheticalert?branch=main)
 
 # python-syntheticalert
 
