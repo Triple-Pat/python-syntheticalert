@@ -1,0 +1,5 @@
+rules:
+  self-repository:
+    # `./` and GitHub's newer `$/` name the same checkout; keep the form
+    # every other tool here already understands.
+    disable: true

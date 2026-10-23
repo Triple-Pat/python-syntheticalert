@@ -6,7 +6,7 @@ readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Triple Pat" }]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = []
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -21,7 +21,7 @@ Homepage = "https://triplepat.com"
 Source = "https://github.com/Triple-Pat/python-syntheticalert"
 
 [build-system]
-requires = ["uv_build>=0.12,<0.13"]
+requires = ["uv_build>=0.13,<0.14"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -38,12 +38,14 @@ dev = [
   "pytest-cov",
   "pytest-rerunfailures",
   "ruff",
+  "twine",
   "yamllint",
+  "zizmor",
 ]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["ALL"]

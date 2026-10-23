@@ -1,0 +1,53 @@
+name: Release
+run-name: "Release ${{ github.ref_name }}"
+on:
+  push:
+    tags:
+      - "v*"
+permissions: {}
+jobs:
+  # A tag on a commit that fails lint or tests never reaches PyPI. CI also
+  # builds and checks the files this workflow publishes.
+  ci:
+    name: Lint and Test
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  publish:
+    name: Publish to PyPI
+    needs: ci
+    runs-on: ubuntu-latest
+    # PyPI trusts this workflow file in this environment and no other; a
+    # protection rule on the environment can hold each release for a
+    # human's approval before anything uploads.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/triplepat-syntheticalert/
+    permissions:
+      contents: write # the draft GitHub Release
+      id-token: write # trusted publishing: PyPI exchanges this for an upload token
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - name: Check the tag names the package's version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          wheel="dist/triplepat_syntheticalert-${TAG#v}-py3-none-any.whl"
+          if [ ! -f "${wheel}" ]; then
+            echo "::error::tag ${TAG} does not match the built package: $(ls dist)"
+            exit 1
+          fi
+      # PyPA's own publisher; it also uploads signed attestations tying
+      # the files to this workflow.
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+      # Draft, so the release notes get a review before anyone sees them.
+      - name: Draft the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" --draft --verify-tag --title "${TAG}" --notes "" dist/*
