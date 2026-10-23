@@ -1,6 +1,6 @@
 [project]
 name = "triplepat-syntheticalert"
-version = "0.0.0"
+version = "0.1.0"
 description = "A synthetic alert measurement callback, so a Triple Pat check-in timer can verify your alerting pipeline end to end."
 readme = "README.md"
 license = "Apache-2.0"
@@ -9,7 +9,7 @@ authors = [{ name = "Triple Pat" }]
 requires-python = ">=3.11"
 dependencies = []
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: System Administrators",
   "Programming Language :: Python :: 3",
   "Topic :: System :: Monitoring",
