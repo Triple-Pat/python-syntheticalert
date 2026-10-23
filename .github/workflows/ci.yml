@@ -16,7 +16,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
+        # Newest first: the one-leg steps below run on job-index 0, and they
+        # should run the newest locked tools (zizmor 1.31 dropped 3.10).
+        python-version: ["3.15", "3.14", "3.13", "3.12", "3.11", "3.10"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -24,7 +26,10 @@ jobs:
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           python-version: ${{ matrix.python-version }}
-          enable-cache: true
+          # No cache on release tags: the published files are built here,
+          # and they must not restore anything an earlier run could have
+          # written.
+          enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
       - run: uv sync --locked
 
       # --- Linting ---
