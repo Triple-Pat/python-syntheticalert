@@ -38,7 +38,9 @@ dev = [
   "pytest-cov",
   "pytest-rerunfailures",
   "ruff",
+  "twine",
   "yamllint",
+  "zizmor",
 ]
 
 [tool.ruff]
