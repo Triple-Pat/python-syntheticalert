@@ -53,3 +53,17 @@ jobs:
           fail-on-error: false
       - name: Coverage gate
         run: uv run coverage report --fail-under=100
+
+      # --- Packaging ---
+      # Checks what a release would upload, on every commit, so the first
+      # upload to PyPI is not the first time the package is built: the
+      # metadata and README pass PyPI's checks, and the wheel installs and
+      # works in a fresh environment with none of the dev dependencies.
+      - name: Build
+        run: uv build
+      - name: Check the distribution metadata
+        run: uvx twine check --strict dist/*
+      - name: Install the wheel into a fresh environment
+        run: >-
+          uv run --isolated --no-project --with dist/*.whl
+          python -c "import syntheticalert; print(syntheticalert.SyntheticAlert()())"
