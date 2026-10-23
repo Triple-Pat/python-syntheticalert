@@ -5,6 +5,8 @@ on:
     branches:
       - main
   pull_request:
+  # The release workflow runs this whole suite before it publishes.
+  workflow_call:
 permissions:
   contents: read
 jobs:

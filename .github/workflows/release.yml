@@ -1,0 +1,56 @@
+name: Release
+run-name: "Release ${{ github.ref_name }}"
+on:
+  push:
+    tags:
+      - "v*"
+permissions: {}
+jobs:
+  # A tag on a commit that fails lint or tests never reaches PyPI.
+  ci:
+    name: Lint and Test
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  publish:
+    name: Publish to PyPI
+    needs: ci
+    runs-on: ubuntu-latest
+    # PyPI trusts this workflow file in this environment and no other; a
+    # protection rule on the environment can hold each release for a
+    # human's approval before anything uploads.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/triplepat-syntheticalert/
+    permissions:
+      contents: write # the draft GitHub Release
+      id-token: write # trusted publishing: PyPI exchanges this for an upload token
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No cache: a release must not restore anything an earlier, less
+      # trusted run could have written.
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: false
+      - name: Check the tag names the package's version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(uv version --short)"
+          if [ "${TAG}" != "v${version}" ]; then
+            echo "::error::tag ${TAG} does not match version ${version} in pyproject.toml"
+            exit 1
+          fi
+      - name: Build
+        run: uv build
+      - name: Publish to PyPI
+        run: uv publish --trusted-publishing always
+      # Draft, so the release notes get a review before anyone sees them.
+      - name: Draft the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" --draft --verify-tag --title "${TAG}" --notes "" dist/*
