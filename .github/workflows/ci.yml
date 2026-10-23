@@ -77,3 +77,14 @@ jobs:
         run: >-
           uv run --isolated --no-project --with dist/*.whl
           python -c "import syntheticalert; print(syntheticalert.SyntheticAlert()())"
+      # On a release tag, the release workflow publishes exactly these
+      # files, the ones the checks above passed, so its job that holds
+      # publishing rights never runs a build. The wheel is pure Python, so
+      # any leg's build serves.
+      - name: Keep the distribution for the release
+        if: strategy.job-index == 0 && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
