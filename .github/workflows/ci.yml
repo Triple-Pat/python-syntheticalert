@@ -17,8 +17,8 @@ jobs:
       fail-fast: false
       matrix:
         # Newest first: the one-leg steps below run on job-index 0, and they
-        # should run the newest locked tools (zizmor 1.31 dropped 3.10).
-        python-version: ["3.15", "3.14", "3.13", "3.12", "3.11", "3.10"]
+        # should run the newest locked tools.
+        python-version: ["3.15", "3.14", "3.13", "3.12", "3.11"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
